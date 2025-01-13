@@ -205,6 +205,10 @@ class GenerationConfig(PushToHubMixin):
             Minimum token probability, which will be scaled by the probability of the most likely token. It must be a
             value between 0 and 1. Typical values are in the 0.01-0.2 range, comparably selective as setting `top_p` in
             the 0.99-0.8 range (use the opposite of normal `top_p` values).
+        min_z (`float`, *optional*):
+            Minimum token z-score threshold. Only tokens with z-scores above this threshold will be kept.
+            The z-score is computed relative to the mean and standard deviation of the logits.
+            Must be a float value.
         typical_p (`float`, *optional*, defaults to 1.0):
             Local typicality measures how similar the conditional probability of predicting a target token next is to
             the expected conditional probability of predicting a random token next, given the partial text already
@@ -422,6 +426,7 @@ class GenerationConfig(PushToHubMixin):
         self.top_k = kwargs.pop("top_k", 50)
         self.top_p = kwargs.pop("top_p", 1.0)
         self.min_p = kwargs.pop("min_p", None)
+        self.min_z = kwargs.pop("min_z", None)
         self.typical_p = kwargs.pop("typical_p", 1.0)
         self.epsilon_cutoff = kwargs.pop("epsilon_cutoff", 0.0)
         self.eta_cutoff = kwargs.pop("eta_cutoff", 0.0)

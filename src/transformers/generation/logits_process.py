@@ -952,12 +952,12 @@ class NoRepeatNGramLogitsProcessor(LogitsProcessor):
 
     >>> output = model.generate(**inputs)
     >>> print(tokenizer.decode(output[0], skip_special_tokens=True))
-    Today I’m not sure if I’m going to be able to do it.
+    Today I'm not sure if I'm going to be able to do it.
 
-    >>> # Now let's add ngram size using `no_repeat_ngram_size`. This stops the repetitions ("I’m") in the output.
+    >>> # Now let's add ngram size using `no_repeat_ngram_size`. This stops the repetitions ("I'm") in the output.
     >>> output = model.generate(**inputs, no_repeat_ngram_size=2)
     >>> print(tokenizer.decode(output[0], skip_special_tokens=True))
-    Today I’m not sure if I can get a better understanding of the nature of this issue
+    Today I'm not sure if I can get a better understanding of the nature of this issue
     ```
     """
 
@@ -2953,3 +2953,50 @@ class SynthIDTextWatermarkLogitsProcessor(LogitsProcessor):
             The expected mean g-value for watermarked text.
         """
         return coinflip_prob + coinflip_prob * (1 - coinflip_prob) * (1 - (1 / vocab_size))
+
+
+class MinZLogitsWarper(LogitsWarper):
+    """
+    [`LogitsWarper`] that performs min-z sampling by keeping tokens with z-scores above a threshold.
+    The z-score is computed relative to the mean and standard deviation of the logits.
+
+    Args:
+        min_z (`float`):
+            The minimum z-score threshold. Only tokens with z-scores above this threshold will be kept.
+            Must be a float value.
+        min_tokens_to_keep (`int`, *optional*, defaults to 1):
+            The minimum number of tokens that must be kept for sampling.
+        filter_value (`float`, *optional*, defaults to -float("Inf")):
+            All filtered values will be set to this float value.
+    """
+
+    def __init__(self, min_z: float, min_tokens_to_keep: int = 1, filter_value: float = -float("Inf")):
+        if not isinstance(min_z, float):
+            raise ValueError(f"`min_z` has to be a float, but is {type(min_z)}")
+
+        self.min_z = min_z
+        self.min_tokens_to_keep = min_tokens_to_keep
+        self.filter_value = filter_value
+
+    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
+        # Calculate mean and standard deviation of logits
+        mean = scores.mean()
+        std = scores.std()
+
+        # Calculate z-scores
+        z_scores = (scores - mean) / std
+
+        # Create a mask for tokens with z-scores above threshold
+        z_score_mask = z_scores > self.min_z
+
+        # Ensure at least min_tokens_to_keep tokens are kept
+        if z_score_mask.sum() < self.min_tokens_to_keep:
+            top_k = min(self.min_tokens_to_keep, z_scores.size(-1))
+            top_k_mask = torch.zeros_like(z_scores, dtype=torch.bool)
+            top_k_indices = torch.topk(z_scores, top_k).indices
+            top_k_mask.scatter_(-1, top_k_indices, True)
+            z_score_mask = z_score_mask | top_k_mask
+
+        # Set scores for filtered tokens to filter_value
+        scores = scores.masked_fill(~z_score_mask, self.filter_value)
+        return scores

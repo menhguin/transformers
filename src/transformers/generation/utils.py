@@ -93,6 +93,7 @@ from .logits_process import (
     TopPLogitsWarper,
     TypicalLogitsWarper,
     UnbatchedClassifierFreeGuidanceLogitsProcessor,
+    MinZLogitsWarper,
 )
 from .stopping_criteria import (
     ConfidenceCriteria,
@@ -1068,6 +1069,10 @@ class GenerationMixin:
                 # Applied after temperature scaling (see https://github.com/ggerganov/llama.cpp/pull/3841#issuecomment-2073826084)
                 processors.append(
                     MinPLogitsWarper(min_p=generation_config.min_p, min_tokens_to_keep=min_tokens_to_keep)
+                )
+            if generation_config.min_z is not None:
+                processors.append(
+                    MinZLogitsWarper(min_z=generation_config.min_z, min_tokens_to_keep=min_tokens_to_keep)
                 )
             if generation_config.typical_p is not None and generation_config.typical_p < 1.0:
                 processors.append(
